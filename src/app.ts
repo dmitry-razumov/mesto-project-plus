@@ -1,10 +1,12 @@
 import path from 'path';
 import express, { NextFunction, Request, Response } from 'express';
 import mongoose from 'mongoose';
+import helmet from 'helmet';
 import usersRouter from './routes/users';
 import cardsRouter from './routes/cards';
 import { DB_URL, SRV_PORT } from './utils/const';
 import errors from './middlewars/errors';
+import NotFoundError from './errors/not-found-error';
 
 declare global {
   namespace Express {
@@ -16,6 +18,7 @@ declare global {
 
 const { PORT = SRV_PORT } = process.env;
 const app = express();
+app.use(helmet());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -24,7 +27,7 @@ mongoose.connect(DB_URL);
 
 app.use((req: Request, res: Response, next: NextFunction) => {
   req.user = {
-    _id: '662fe0f03306d3b726d82af9' // вставьте сюда _id созданного пользователя
+    _id: '662fe0f03306d3b726d82af9', // вставьте сюда _id созданного пользователя
   };
 
   next();
@@ -32,6 +35,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 app.use('/users', usersRouter);
 app.use('/cards', cardsRouter);
+app.use('*', (req, res, next) => {
+  next(new NotFoundError('Запрашиваемый ресурс не найден'));
+});
 
 app.use(express.static(path.join(__dirname, 'public')));
 

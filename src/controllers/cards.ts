@@ -7,14 +7,15 @@ import NotFoundError from '../errors/not-found-error';
 export const createCard = (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user._id;
   const { name, link } = req.body;
-
-  if (!name || !link) {
-    return next(new BadRequest('Некорректные параметры запроса'));
-  }
-
   return Card.create({ name, link, owner: userId })
     .then((card) => res.status(HTTP_STATUS_CREATED).send(card))
-    .catch(next);
+    .catch((err) => {
+      if (err.name === 'ValidationError') {
+        const message = Object.values(err.errors).map((value:any) => value.message);
+        return next(new BadRequest(JSON.stringify(message)));
+      }
+      return next(err);
+    });
 };
 
 export const getCards = (req: Request, res: Response, next: NextFunction) => (
@@ -27,14 +28,17 @@ export const getCards = (req: Request, res: Response, next: NextFunction) => (
 export const deleteCard = (req: Request, res: Response, next: NextFunction) => {
   const { cardId } = req.params;
   return Card.findByIdAndRemove(cardId)
+    .orFail(new NotFoundError('Нет карточки с таким id'))
     .populate('owner')
     .then((card) => {
-      if (!card) {
-        throw new NotFoundError('Нет карточки с таким id');
-      }
       res.status(HTTP_STATUS_OK).send(card);
     })
-    .catch(next);
+    .catch((err) => {
+      if (err.name === 'CastError') {
+        return next(new BadRequest('Передан некорректный тип cardId'));
+      }
+      return next(err);
+    });
 };
 
 export const likeCard = (req: Request, res: Response, next: NextFunction) => {
@@ -45,14 +49,17 @@ export const likeCard = (req: Request, res: Response, next: NextFunction) => {
     { $addToSet: { likes: userId } },
     { new: true },
   )
+    .orFail(new NotFoundError('Нет карточки с таким id'))
     .populate('owner')
     .then((card) => {
-      if (!card) {
-        return next(new NotFoundError('Нет карточки с таким id'));
-      }
-      return res.status(HTTP_STATUS_OK).send(card);
+      res.status(HTTP_STATUS_OK).send(card);
     })
-    .catch(next);
+    .catch((err) => {
+      if (err.name === 'CastError') {
+        return next(new BadRequest('Передан некорректный тип cardId или userId'));
+      }
+      return next(err);
+    });
 };
 
 export const dislikeCard = (req: Request, res: Response, next: NextFunction) => {
@@ -63,12 +70,15 @@ export const dislikeCard = (req: Request, res: Response, next: NextFunction) => 
     { $pull: { likes: userId } },
     { new: true },
   )
+    .orFail(new NotFoundError('Нет карточки с таким id'))
     .populate('owner')
     .then((card) => {
-      if (!card) {
-        return next(new NotFoundError('Нет карточки с таким id'));
-      }
-      return res.status(HTTP_STATUS_OK).send(card);
+      res.status(HTTP_STATUS_OK).send(card);
     })
-    .catch(next);
+    .catch((err) => {
+      if (err.name === 'CastError') {
+        return next(new BadRequest('Передан некорректный тип cardId или userId'));
+      }
+      return next(err);
+    });
 };
