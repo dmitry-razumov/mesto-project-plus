@@ -3,6 +3,7 @@ import Card from '../models/cards';
 import BadRequest from '../errors/bad-request';
 import { HTTP_STATUS_CREATED, HTTP_STATUS_OK } from '../utils/const';
 import NotFoundError from '../errors/not-found-error';
+import ForbiddenError from '../errors/forbidden-error';
 
 export const createCard = (req: Request, res: Response, next: NextFunction) => {
   const userId = req.user._id;
@@ -27,12 +28,16 @@ export const getCards = (req: Request, res: Response, next: NextFunction) => (
 
 export const deleteCard = (req: Request, res: Response, next: NextFunction) => {
   const { cardId } = req.params;
-  return Card.findByIdAndRemove(cardId)
+  return Card.findById(cardId)
     .orFail(new NotFoundError('Нет карточки с таким id'))
     .populate('owner')
     .then((card) => {
-      res.status(HTTP_STATUS_OK).send(card);
+      if (card.owner._id.toString() !== req.user._id) {
+        return next(new ForbiddenError('Нельзя удалить чужую карточку'));
+      }
+      return card.deleteOne();
     })
+    .then((card) => res.status(HTTP_STATUS_OK).send(card))
     .catch((err) => {
       if (err.name === 'CastError') {
         return next(new BadRequest('Передан некорректный тип cardId'));

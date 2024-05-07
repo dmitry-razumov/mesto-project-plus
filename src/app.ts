@@ -1,20 +1,18 @@
 import path from 'path';
-import express, { NextFunction, Request, Response } from 'express';
+import express from 'express';
 import mongoose from 'mongoose';
 import helmet from 'helmet';
+import { JwtPayload } from 'jsonwebtoken';
+import { errors } from 'celebrate';
+import { requestLogger, errorLogger } from './middlewars/logger';
 import usersRouter from './routes/users';
 import cardsRouter from './routes/cards';
 import { DB_URL, SRV_PORT } from './utils/const';
-import errors from './middlewars/errors';
+import errorsMidleware from './middlewars/errors';
 import NotFoundError from './errors/not-found-error';
-
-declare global {
-  namespace Express {
-    interface Request {
-      user: { _id: string }
-    }
-  }
-}
+import { createUser, login } from './controllers/users';
+import auth from './middlewars/auth';
+import validators from './validators/users';
 
 const { PORT = SRV_PORT } = process.env;
 const app = express();
@@ -25,14 +23,19 @@ app.use(express.urlencoded({ extended: true }));
 
 mongoose.connect(DB_URL);
 
-app.use((req: Request, res: Response, next: NextFunction) => {
-  req.user = {
-    _id: '662fe0f03306d3b726d82af9', // вставьте сюда _id созданного пользователя
-  };
+declare global {
+  namespace Express {
+    interface Request {
+      user: JwtPayload
+    }
+  }
+}
 
-  next();
-});
+app.use(requestLogger);
 
+app.use('/signin', validators.loginValidation, login);
+app.use('/signup', validators.createUserValidation, createUser);
+app.use(auth);
 app.use('/users', usersRouter);
 app.use('/cards', cardsRouter);
 app.use('*', (req, res, next) => {
@@ -41,7 +44,9 @@ app.use('*', (req, res, next) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use(errors);
+app.use(errorLogger);
+app.use(errors());
+app.use(errorsMidleware);
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}/`);
