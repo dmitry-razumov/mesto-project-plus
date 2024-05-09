@@ -3,7 +3,7 @@ import { urlRegEx } from '../utils/const';
 
 const getUserByIdValidation = celebrate({
   params: Joi.object({
-    userId: Joi.string().length(24).hex().required,
+    userId: Joi.string().length(24).hex().required(),
   }),
 });
 

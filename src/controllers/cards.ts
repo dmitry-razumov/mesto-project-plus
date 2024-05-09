@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { Error } from 'mongoose';
 import Card from '../models/cards';
 import BadRequest from '../errors/bad-request';
 import { HTTP_STATUS_CREATED, HTTP_STATUS_OK } from '../utils/const';
@@ -11,7 +12,7 @@ export const createCard = (req: Request, res: Response, next: NextFunction) => {
   return Card.create({ name, link, owner: userId })
     .then((card) => res.status(HTTP_STATUS_CREATED).send(card))
     .catch((err) => {
-      if (err.name === 'ValidationError') {
+      if (err instanceof Error.ValidationError) {
         const message = Object.values(err.errors).map((value:any) => value.message);
         return next(new BadRequest(JSON.stringify(message)));
       }
@@ -39,7 +40,7 @@ export const deleteCard = (req: Request, res: Response, next: NextFunction) => {
     })
     .then((card) => res.status(HTTP_STATUS_OK).send(card))
     .catch((err) => {
-      if (err.name === 'CastError') {
+      if (err instanceof Error.CastError) {
         return next(new BadRequest('Передан некорректный тип cardId'));
       }
       return next(err);
@@ -60,8 +61,8 @@ export const likeCard = (req: Request, res: Response, next: NextFunction) => {
       res.status(HTTP_STATUS_OK).send(card);
     })
     .catch((err) => {
-      if (err.name === 'CastError') {
-        return next(new BadRequest('Передан некорректный тип cardId или userId'));
+      if (err instanceof Error.CastError) {
+        return next(new BadRequest('Передан некорректный тип cardId'));
       }
       return next(err);
     });
@@ -81,8 +82,8 @@ export const dislikeCard = (req: Request, res: Response, next: NextFunction) => 
       res.status(HTTP_STATUS_OK).send(card);
     })
     .catch((err) => {
-      if (err.name === 'CastError') {
-        return next(new BadRequest('Передан некорректный тип cardId или userId'));
+      if (err instanceof Error.CastError) {
+        return next(new BadRequest('Передан некорректный тип cardId'));
       }
       return next(err);
     });

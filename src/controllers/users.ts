@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import mongoose, { Error } from 'mongoose';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import User from '../models/user';
@@ -22,10 +23,10 @@ export const createUser = (req: Request, res: Response, next: NextFunction) => {
       email: user.email,
     }))
     .catch((err) => {
-      if (err.name === 'MongoServerError' && err.code === 11000) {
+      if (err instanceof mongoose.mongo.MongoServerError && err.code === 11000) {
         return next(new ConflictError('Email уже существует'));
       }
-      if (err.name === 'ValidationError') {
+      if (err instanceof Error.ValidationError) {
         const message = Object.values(err.errors).map((value:any) => value.message);
         return next(new BadRequest(JSON.stringify(message)));
       }
@@ -39,68 +40,6 @@ export const getUsers = (req: Request, res: Response, next: NextFunction) => (
     .catch(next)
 );
 
-export const getUserById = (req: Request, res: Response, next: NextFunction) => (
-  User.findById(req.params.userId)
-    .orFail(new NotFoundError('Нет пользователя с таким id'))
-    .then((user) => {
-      res.status(HTTP_STATUS_OK).send(user);
-    })
-    .catch((err) => {
-      if (err.name === 'CastError') {
-        return next(new BadRequest('Передан некорректный тип userId'));
-      }
-      return next(err);
-    })
-);
-
-export const updateUser = (req: Request, res: Response, next: NextFunction) => {
-  const userId = req.user._id;
-  const { name, about } = req.body;
-  return User.findByIdAndUpdate(
-    userId,
-    { name, about },
-    { new: true, runValidators: true, upsert: false },
-  )
-    .orFail(new NotFoundError('Нет пользователя с таким id'))
-    .then((user) => {
-      res.status(HTTP_STATUS_OK).send(user);
-    })
-    .catch((err) => {
-      if (err.name === 'ValidationError') {
-        const message = Object.values(err.errors).map((value:any) => value.message);
-        return next(new BadRequest(JSON.stringify(message)));
-      }
-      if (err.name === 'CastError') {
-        return next(new BadRequest('Передан некорректный тип userId'));
-      }
-      return next(err);
-    });
-};
-
-export const updateAvatar = (req: Request, res: Response, next: NextFunction) => {
-  const userId = req.user._id;
-  const { avatar } = req.body;
-  return User.findByIdAndUpdate(
-    userId,
-    { avatar },
-    { new: true, runValidators: true, upsert: false },
-  )
-    .orFail(new NotFoundError('Нет пользователя с таким id'))
-    .then((user) => {
-      res.status(HTTP_STATUS_OK).send(user);
-    })
-    .catch((err) => {
-      if (err.name === 'ValidationError') {
-        const message = Object.values(err.errors).map((value:any) => value.message);
-        return next(new BadRequest(JSON.stringify(message)));
-      }
-      if (err.name === 'CastError') {
-        return next(new BadRequest('Передан некорректный тип userId'));
-      }
-      return next(err);
-    });
-};
-
 export const login = (req: Request, res: Response, next: NextFunction) => {
   const { email, password } = req.body;
   return User.findUserByCredentials(email, password)
@@ -108,22 +47,59 @@ export const login = (req: Request, res: Response, next: NextFunction) => {
       // создадим токен
       const token = jwt.sign({ _id: user._id }, JWT_SECRET, { expiresIn: '7d' });
       // вернём токен
-      res.send({ token });
+      res.status(HTTP_STATUS_OK).send({ token });
+    })
+    .catch((err) => next(err));
+};
+
+const findUser = (userId: string, req: Request, res: Response, next: NextFunction) => {
+  User.findById(userId)
+    .orFail(new NotFoundError('Нет пользователя с таким id'))
+    .then((user) => {
+      res.status(HTTP_STATUS_OK).send(user);
     })
     .catch((err) => next(err));
 };
 
 export const getUser = (req: Request, res: Response, next: NextFunction) => {
-  const userId = req.user?._id ?? req.params.userId;
-  return User.findById(userId)
+  findUser(req.user._id, req, res, next);
+};
+
+export const getUserById = (req: Request, res: Response, next: NextFunction) => {
+  findUser(req.params.userId, req, res, next);
+};
+
+type TUserUpdateDto = {
+  name?: string,
+  about?: string,
+  avatar?: string
+}
+
+const updateUserFields = (dto: TUserUpdateDto, req: Request, res: Response, next: NextFunction) => {
+  User.findByIdAndUpdate(
+    req.user._id,
+    dto,
+    { new: true, runValidators: true, upsert: false },
+  )
     .orFail(new NotFoundError('Нет пользователя с таким id'))
     .then((user) => {
       res.status(HTTP_STATUS_OK).send(user);
     })
     .catch((err) => {
-      if (err.name === 'CastError') {
-        return next(new BadRequest('Передан некорректный тип userId'));
+      if (err instanceof Error.ValidationError) {
+        const message = Object.values(err.errors).map((value:any) => value.message);
+        return next(new BadRequest(JSON.stringify(message)));
       }
       return next(err);
     });
+};
+
+export const updateUser = (req: Request, res: Response, next: NextFunction) => {
+  const { name, about } = req.body;
+  updateUserFields({ name, about }, req, res, next);
+};
+
+export const updateAvatar = (req: Request, res: Response, next: NextFunction) => {
+  const { avatar } = req.body;
+  updateUserFields({ avatar }, req, res, next);
 };

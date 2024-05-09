@@ -1,4 +1,3 @@
-import path from 'path';
 import express from 'express';
 import mongoose from 'mongoose';
 import helmet from 'helmet';
@@ -41,8 +40,6 @@ app.use('/cards', cardsRouter);
 app.use('*', (req, res, next) => {
   next(new NotFoundError('Запрашиваемый ресурс не найден'));
 });
-
-app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(errorLogger);
 app.use(errors());
